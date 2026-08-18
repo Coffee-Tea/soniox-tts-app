@@ -1,0 +1,1212 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=yes, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1a1a2e" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔊</text></svg>">
+<title>Soniox TTS</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+[hidden] { display: none !important; }
+
+:root {
+  --bg: #ffffff;
+  --bg-secondary: #f5f5f7;
+  --bg-tertiary: #e8e8ed;
+  --text: #1d1d1f;
+  --text-secondary: #6e6e73;
+  --accent: #0071e3;
+  --accent-hover: #0077ed;
+  --accent-text: #ffffff;
+  --border: #d2d2d7;
+  --danger: #ff3b30;
+  --danger-hover: #ff453a;
+  --success: #34c759;
+  --toast-bg: #1d1d1f;
+  --toast-text: #f5f5f7;
+  --overlay: rgba(0,0,0,0.4);
+  --shadow: 0 2px 12px rgba(0,0,0,0.08);
+  --radius: 12px;
+  --radius-sm: 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1a1a2e;
+    --bg-secondary: #22223a;
+    --bg-tertiary: #2a2a45;
+    --text: #f0f0f5;
+    --text-secondary: #8e8ea0;
+    --accent: #0a84ff;
+    --accent-hover: #409cff;
+    --accent-text: #ffffff;
+    --border: #3a3a52;
+    --danger: #ff453a;
+    --danger-hover: #ff6961;
+    --success: #30d158;
+    --toast-bg: #f0f0f5;
+    --toast-text: #1a1a2e;
+    --overlay: rgba(0,0,0,0.6);
+    --shadow: 0 2px 12px rgba(0,0,0,0.3);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1a1a2e;
+  --bg-secondary: #22223a;
+  --bg-tertiary: #2a2a45;
+  --text: #f0f0f5;
+  --text-secondary: #8e8ea0;
+  --accent: #0a84ff;
+  --accent-hover: #409cff;
+  --accent-text: #ffffff;
+  --border: #3a3a52;
+  --danger: #ff453a;
+  --danger-hover: #ff6961;
+  --success: #30d158;
+  --toast-bg: #f0f0f5;
+  --toast-text: #1a1a2e;
+  --overlay: rgba(0,0,0,0.6);
+  --shadow: 0 2px 12px rgba(0,0,0,0.3);
+}
+:root[data-theme="light"] {
+  --bg: #ffffff;
+  --bg-secondary: #f5f5f7;
+  --bg-tertiary: #e8e8ed;
+  --text: #1d1d1f;
+  --text-secondary: #6e6e73;
+  --accent: #0071e3;
+  --accent-hover: #0077ed;
+  --accent-text: #ffffff;
+  --border: #d2d2d7;
+  --danger: #ff3b30;
+  --danger-hover: #ff453a;
+  --success: #34c759;
+  --toast-bg: #1d1d1f;
+  --toast-text: #f5f5f7;
+  --overlay: rgba(0,0,0,0.4);
+  --shadow: 0 2px 12px rgba(0,0,0,0.08);
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100dvh;
+  -webkit-text-size-adjust: 100%;
+}
+
+.app {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 0 16px env(safe-area-inset-bottom) 16px;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 0;
+  padding-top: calc(16px + env(safe-area-inset-top));
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+}
+header h1 {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+.gear-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s;
+  line-height: 0;
+}
+.gear-btn:hover { background: var(--bg-tertiary); }
+.gear-btn svg { width: 22px; height: 22px; }
+
+section { margin-bottom: 20px; }
+label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+textarea {
+  width: 100%;
+  min-height: 150px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-secondary);
+  color: var(--text);
+  font-size: 16px;
+  font-family: inherit;
+  line-height: 1.5;
+  resize: vertical;
+  transition: border-color 0.15s;
+}
+textarea:focus { outline: none; border-color: var(--accent); }
+.byte-info {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.controls-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+select, input[type="range"] {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+  color: var(--text);
+  font-size: 15px;
+  font-family: inherit;
+  appearance: none;
+  -webkit-appearance: none;
+}
+select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236e6e73' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+}
+select:focus, input[type="range"]:focus { outline: none; border-color: var(--accent); }
+
+.speed-group { grid-column: 1 / -1; }
+.speed-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.speed-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+}
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: var(--bg-tertiary);
+  margin-top: 8px;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
+
+.action-row {
+  display: flex;
+  gap: 10px;
+}
+.btn {
+  flex: 1;
+  padding: 14px 20px;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 16px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+}
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+.btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+.btn-danger {
+  background: var(--danger);
+  color: #fff;
+  flex: 0 0 auto;
+}
+.btn-danger:hover:not(:disabled) { background: var(--danger-hover); }
+.btn-secondary {
+  background: var(--bg-tertiary);
+  color: var(--text);
+}
+.btn-secondary:hover:not(:disabled) { background: var(--border); }
+
+.progress-text {
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+
+.player-section audio {
+  width: 100%;
+  border-radius: var(--radius-sm);
+}
+.download-btn {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+}
+
+.history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.history-header h2 {
+  font-size: 17px;
+  font-weight: 700;
+}
+.clear-btn {
+  background: none;
+  border: none;
+  color: var(--danger);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+}
+.clear-btn:hover { background: var(--bg-tertiary); }
+.history-list { list-style: none; }
+.history-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+}
+.history-item-info {
+  flex: 1;
+  min-width: 0;
+}
+.history-item-text {
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.history-item-meta {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+.history-item-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.icon-btn {
+  background: var(--bg-tertiary);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  line-height: 0;
+  transition: background 0.15s;
+}
+.icon-btn:hover { background: var(--border); }
+.icon-btn svg { width: 16px; height: 16px; }
+.icon-btn.delete-btn:hover { color: var(--danger); }
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 20px;
+}
+.modal {
+  background: var(--bg);
+  border-radius: var(--radius);
+  padding: 24px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: var(--shadow);
+}
+.modal h2 {
+  font-size: 18px;
+  margin-bottom: 16px;
+}
+.modal-field { margin-bottom: 16px; }
+.modal-field label { margin-bottom: 4px; }
+.key-input-wrap {
+  display: flex;
+  gap: 8px;
+}
+.key-input-wrap input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+  color: var(--text);
+  font-size: 15px;
+  font-family: inherit;
+}
+.key-input-wrap input:focus { outline: none; border-color: var(--accent); }
+.toggle-vis {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+.modal-actions .btn { flex: 0 0 auto; padding: 10px 20px; }
+
+.toast-container {
+  position: fixed;
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 8px;
+  pointer-events: none;
+  width: calc(100% - 32px);
+  max-width: 400px;
+}
+.toast {
+  background: var(--toast-bg);
+  color: var(--toast-text);
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+  animation: slideUp 0.25s ease-out;
+  pointer-events: auto;
+}
+.toast.info { border-left: 4px solid var(--accent); }
+.toast.error { border-left: 4px solid var(--danger); }
+.toast.success { border-left: 4px solid var(--success); }
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Soniox TTS</h1>
+    <button class="gear-btn" id="openSettings" aria-label="Settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    </button>
+  </header>
+
+  <section>
+    <label for="textInput">Текст</label>
+    <textarea id="textInput" placeholder="Введіть або вставте текст…"></textarea>
+    <div class="byte-info" id="byteInfo">0 / 5000 bytes (0 chunks)</div>
+  </section>
+
+  <section>
+    <div class="controls-grid">
+      <div>
+        <label for="voiceSelect">Голос</label>
+        <select id="voiceSelect">
+          <optgroup label="Female">
+            <option value="Grace">Grace</option>
+            <option value="Mina">Mina</option>
+            <option value="Nina">Nina</option>
+            <option value="Emma">Emma</option>
+            <option value="Juliet">Juliet</option>
+            <option value="Victoria">Victoria</option>
+            <option value="Nora">Nora</option>
+            <option value="Hazel">Hazel</option>
+            <option value="Poppy">Poppy</option>
+            <option value="Isla">Isla</option>
+            <option value="Cordelia">Cordelia</option>
+            <option value="Reese">Reese</option>
+            <option value="Harper">Harper</option>
+            <option value="Kayla">Kayla</option>
+            <option value="Imogen">Imogen</option>
+            <option value="Lucia">Lucia</option>
+            <option value="Ruby">Ruby</option>
+            <option value="Priya">Priya</option>
+            <option value="Piper">Piper</option>
+          </optgroup>
+          <optgroup label="Male">
+            <option value="Daniel">Daniel</option>
+            <option value="Adrian">Adrian</option>
+            <option value="Bryce">Bryce</option>
+            <option value="Owen">Owen</option>
+            <option value="Miles">Miles</option>
+            <option value="Alistair">Alistair</option>
+            <option value="Bennett">Bennett</option>
+            <option value="Harlan">Harlan</option>
+            <option value="Kenji">Kenji</option>
+            <option value="Rafael">Rafael</option>
+            <option value="Mateo">Mateo</option>
+            <option value="Oliver">Oliver</option>
+            <option value="Arthur">Arthur</option>
+            <option value="Cooper">Cooper</option>
+            <option value="Mason">Mason</option>
+            <option value="Arjun">Arjun</option>
+            <option value="Rohan">Rohan</option>
+            <option value="Trevor">Trevor</option>
+            <option value="Evan">Evan</option>
+            <option value="Nathan">Nathan</option>
+            <option value="Karan">Karan</option>
+            <option value="Wesley">Wesley</option>
+            <option value="Curtis">Curtis</option>
+            <option value="Preston">Preston</option>
+            <option value="Walter">Walter</option>
+            <option value="Russell">Russell</option>
+            <option value="Tunde">Tunde</option>
+            <option value="Nigel">Nigel</option>
+            <option value="Shane">Shane</option>
+            <option value="Silas">Silas</option>
+            <option value="Reid">Reid</option>
+            <option value="Emilio">Emilio</option>
+            <option value="Dominic">Dominic</option>
+            <option value="Elliot">Elliot</option>
+            <option value="Hugo">Hugo</option>
+            <option value="Sebastian">Sebastian</option>
+            <option value="Haruto">Haruto</option>
+            <option value="Freddie">Freddie</option>
+            <option value="Logan">Logan</option>
+          </optgroup>
+        </select>
+      </div>
+      <div>
+        <label for="langSelect">Мова</label>
+        <select id="langSelect">
+          <option value="uk" selected>Українська</option>
+          <option value="en">English</option>
+          <option value="es">Español</option>
+          <option value="fr">Français</option>
+          <option value="de">Deutsch</option>
+          <option value="it">Italiano</option>
+          <option value="pt">Português</option>
+          <option value="pl">Polski</option>
+          <option value="ja">日本語</option>
+          <option value="zh">中文</option>
+        </select>
+      </div>
+      <div class="speed-group">
+        <div class="speed-header">
+          <label for="speedRange">Швидкість</label>
+          <span class="speed-value" id="speedValue">1.00</span>
+        </div>
+        <input type="range" id="speedRange" min="0.7" max="1.3" step="0.05" value="1.0">
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="progress-text" id="progressText" hidden></div>
+    <div class="action-row">
+      <button class="btn btn-primary" id="generateBtn">Згенерувати</button>
+      <button class="btn btn-danger" id="cancelBtn" hidden>Скасувати</button>
+    </div>
+  </section>
+
+  <section class="player-section" id="playerSection" hidden>
+    <label>Результат</label>
+    <audio controls id="audioPlayer"></audio>
+    <button class="btn btn-secondary download-btn" id="downloadBtn">Завантажити MP3</button>
+  </section>
+
+  <section id="historySection" hidden>
+    <div class="history-header">
+      <h2>Історія</h2>
+      <button class="clear-btn" id="clearHistory">Очистити</button>
+    </div>
+    <ul class="history-list" id="historyList"></ul>
+  </section>
+</div>
+
+<div class="modal-overlay" id="settingsModal" hidden>
+  <div class="modal">
+    <h2>Налаштування</h2>
+    <div class="modal-field">
+      <label for="apiKeyInput">API Key</label>
+      <div class="key-input-wrap">
+        <input type="password" id="apiKeyInput" placeholder="Soniox API key" autocomplete="off">
+        <button class="toggle-vis" id="toggleKeyVis">Показати</button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="cancelSettings">Скасувати</button>
+      <button class="btn btn-primary" id="saveSettings">Зберегти</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+(function() {
+  'use strict';
+
+  var encoder = new TextEncoder();
+  var BYTE_LIMIT = 4700;
+  var DB_NAME = 'soniox-tts';
+  var DB_VERSION = 1;
+  var HISTORY_LIMIT = 20;
+  var TTS_URL = 'https://tts-rt.soniox.com/tts';
+
+  var $ = function(id) { return document.getElementById(id); };
+
+  var els = {
+    textInput: $('textInput'),
+    byteInfo: $('byteInfo'),
+    voiceSelect: $('voiceSelect'),
+    langSelect: $('langSelect'),
+    speedRange: $('speedRange'),
+    speedValue: $('speedValue'),
+    generateBtn: $('generateBtn'),
+    cancelBtn: $('cancelBtn'),
+    progressText: $('progressText'),
+    playerSection: $('playerSection'),
+    audioPlayer: $('audioPlayer'),
+    downloadBtn: $('downloadBtn'),
+    historySection: $('historySection'),
+    historyList: $('historyList'),
+    clearHistory: $('clearHistory'),
+    settingsModal: $('settingsModal'),
+    apiKeyInput: $('apiKeyInput'),
+    toggleKeyVis: $('toggleKeyVis'),
+    saveSettings: $('saveSettings'),
+    cancelSettings: $('cancelSettings'),
+    openSettings: $('openSettings'),
+    toastContainer: $('toastContainer')
+  };
+
+  var currentBlobUrl = null;
+  var currentBlob = null;
+  var abortController = null;
+  var generating = false;
+  var db = null;
+
+  // --- Toast ---
+
+  function toast(msg, type) {
+    type = type || 'info';
+    var el = document.createElement('div');
+    el.className = 'toast ' + type;
+    el.textContent = msg;
+    els.toastContainer.appendChild(el);
+    setTimeout(function() {
+      el.style.opacity = '0';
+      el.style.transition = 'opacity 0.2s';
+      setTimeout(function() { el.remove(); }, 200);
+    }, 4000);
+  }
+
+  // --- Settings ---
+
+  function getKey() { return localStorage.getItem('soniox_api_key') || ''; }
+  function setKey(k) { localStorage.setItem('soniox_api_key', k); }
+
+  function openSettingsModal() {
+    els.apiKeyInput.value = getKey();
+    els.apiKeyInput.type = 'password';
+    els.toggleKeyVis.textContent = 'Показати';
+    els.settingsModal.hidden = false;
+    els.apiKeyInput.focus();
+  }
+
+  function closeSettingsModal() { els.settingsModal.hidden = true; }
+
+  els.openSettings.onclick = openSettingsModal;
+  els.cancelSettings.onclick = closeSettingsModal;
+  els.saveSettings.onclick = function() {
+    setKey(els.apiKeyInput.value.trim());
+    closeSettingsModal();
+    toast('API key збережено', 'success');
+  };
+  els.toggleKeyVis.onclick = function() {
+    var isPass = els.apiKeyInput.type === 'password';
+    els.apiKeyInput.type = isPass ? 'text' : 'password';
+    els.toggleKeyVis.textContent = isPass ? 'Сховати' : 'Показати';
+  };
+  els.settingsModal.onclick = function(e) {
+    if (e.target === els.settingsModal) closeSettingsModal();
+  };
+
+  // --- Persist controls ---
+
+  function saveControl(key, val) { try { localStorage.setItem('soniox_' + key, val); } catch(e) {} }
+  function loadControl(key) { return localStorage.getItem('soniox_' + key); }
+
+  function restoreControls() {
+    var v = loadControl('voice');
+    if (v) els.voiceSelect.value = v;
+    var l = loadControl('language');
+    if (l) els.langSelect.value = l;
+    var s = loadControl('speed');
+    if (s) {
+      var sv = Math.min(1.3, Math.max(0.7, parseFloat(s)));
+      els.speedRange.value = sv;
+      els.speedValue.textContent = sv.toFixed(2);
+    }
+  }
+
+  els.voiceSelect.onchange = function() { saveControl('voice', this.value); };
+  els.langSelect.onchange = function() { saveControl('language', this.value); };
+  els.speedRange.oninput = function() {
+    var v = parseFloat(this.value).toFixed(2);
+    els.speedValue.textContent = v;
+    saveControl('speed', this.value);
+  };
+
+  // --- Byte count ---
+
+  function updateByteInfo() {
+    var text = els.textInput.value;
+    var stripped = stripMarkdown(text).trim();
+    var bytes = encoder.encode(stripped).length;
+    var chunks = stripped ? chunkText(stripped).length : 0;
+    var chunkWord = chunks === 1 ? 'chunk' : 'chunks';
+    els.byteInfo.textContent = bytes + ' / 5000 bytes (' + chunks + ' ' + chunkWord + ')';
+  }
+
+  els.textInput.oninput = updateByteInfo;
+
+  // --- Markdown stripping ---
+
+  function stripMarkdown(text) {
+    return text
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+      .replace(/https?:\/\/\S+/g, '')
+      .replace(/#{1,6}\s+/g, '')
+      .replace(/\*\*([^*]+)\*\*/g, '$1')
+      .replace(/\*([^*]+)\*/g, '$1')
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/^>\s+/gm, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+
+  // --- Chunking (ported from Python) ---
+
+  function byteLen(s) { return encoder.encode(s).length; }
+
+  function chunkText(text) {
+    var paragraphs = text.trim().split(/\n\n+/);
+    var chunks = [];
+    var current = [];
+    var currentBytes = 0;
+
+    for (var i = 0; i < paragraphs.length; i++) {
+      var p = paragraphs[i];
+      var pBytes = byteLen(p) + 2;
+
+      if (pBytes > BYTE_LIMIT + 2) {
+        if (current.length) {
+          chunks.push(current.join('\n\n'));
+          current = [];
+          currentBytes = 0;
+        }
+        var sub = chunkBySentences(p);
+        for (var j = 0; j < sub.length; j++) chunks.push(sub[j]);
+        continue;
+      }
+
+      if (current.length && currentBytes + pBytes > BYTE_LIMIT) {
+        chunks.push(current.join('\n\n'));
+        current = [];
+        currentBytes = 0;
+      }
+      current.push(p);
+      currentBytes += pBytes;
+    }
+    if (current.length) chunks.push(current.join('\n\n'));
+    return chunks.length ? chunks : [''];
+  }
+
+  function chunkBySentences(text) {
+    var sentences = text.match(/[^.!?]*[.!?]+(?:\s+|$)|[^.!?]+$/g) || [text];
+    var chunks = [];
+    var current = [];
+    var currentBytes = 0;
+
+    for (var i = 0; i < sentences.length; i++) {
+      var s = sentences[i];
+      var sBytes = byteLen(s) + 1;
+
+      if (sBytes > BYTE_LIMIT + 1) {
+        if (current.length) {
+          chunks.push(current.join(' '));
+          current = [];
+          currentBytes = 0;
+        }
+        var sub = chunkByWords(s);
+        for (var j = 0; j < sub.length; j++) chunks.push(sub[j]);
+        continue;
+      }
+
+      if (current.length && currentBytes + sBytes > BYTE_LIMIT) {
+        chunks.push(current.join(' '));
+        current = [];
+        currentBytes = 0;
+      }
+      current.push(s);
+      currentBytes += sBytes;
+    }
+    if (current.length) chunks.push(current.join(' '));
+    return chunks;
+  }
+
+  function chunkByWords(text) {
+    var words = text.split(/\s+/);
+    var chunks = [];
+    var current = [];
+    var currentBytes = 0;
+
+    for (var i = 0; i < words.length; i++) {
+      var w = words[i];
+      var wBytes = byteLen(w) + 1;
+
+      if (current.length && currentBytes + wBytes > BYTE_LIMIT) {
+        chunks.push(current.join(' '));
+        current = [];
+        currentBytes = 0;
+      }
+      current.push(w);
+      currentBytes += wBytes;
+    }
+    if (current.length) chunks.push(current.join(' '));
+    return chunks;
+  }
+
+  // --- TTS generation ---
+
+  function setGenerating(state) {
+    generating = state;
+    els.generateBtn.disabled = state;
+    els.cancelBtn.hidden = !state;
+    els.progressText.hidden = !state;
+    els.textInput.disabled = state;
+  }
+
+  els.cancelBtn.onclick = function() {
+    if (abortController) abortController.abort();
+  };
+
+  els.generateBtn.onclick = async function() {
+    var key = getKey();
+    if (!key) {
+      toast('Вкажіть API key в налаштуваннях', 'error');
+      openSettingsModal();
+      return;
+    }
+    var rawText = els.textInput.value.trim();
+    if (!rawText) {
+      toast('Введіть текст', 'error');
+      return;
+    }
+
+    var text = stripMarkdown(rawText).trim();
+    if (!text) {
+      toast('Після очистки текст порожній', 'error');
+      return;
+    }
+    var chunks = chunkText(text);
+    var voice = els.voiceSelect.value;
+    var lang = els.langSelect.value;
+    var speed = parseFloat(els.speedRange.value);
+
+    setGenerating(true);
+    abortController = new AbortController();
+    var audioParts = [];
+    var ok = true;
+    var timedOut = false;
+
+    for (var i = 0; i < chunks.length; i++) {
+      els.progressText.textContent = 'Генерація частини ' + (i + 1) + ' з ' + chunks.length + '…';
+
+      timedOut = false;
+      var timeoutId = setTimeout(function() { timedOut = true; abortController.abort(); }, 30000);
+
+      try {
+        var resp = await fetch(TTS_URL, {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + key,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: 'tts-rt-v2',
+            language: lang,
+            voice: voice,
+            audio_format: 'mp3',
+            text: chunks[i],
+            speed: speed
+          }),
+          signal: abortController.signal
+        });
+
+        if (!resp.ok) {
+          clearTimeout(timeoutId);
+          if (resp.status === 401) toast('Невірний API key', 'error');
+          else if (resp.status === 429) toast('Rate limit, спробуйте пізніше', 'error');
+          else toast('Помилка API: ' + resp.status, 'error');
+          ok = false;
+          break;
+        }
+
+        audioParts.push(await resp.arrayBuffer());
+        clearTimeout(timeoutId);
+
+      } catch (e) {
+        clearTimeout(timeoutId);
+        if (e.name === 'AbortError') {
+          toast(timedOut ? 'Час очікування вичерпано' : 'Скасовано', timedOut ? 'error' : 'info');
+        } else {
+          toast('Помилка мережі', 'error');
+        }
+        ok = false;
+        break;
+      }
+    }
+
+    setGenerating(false);
+    abortController = null;
+
+    if (!ok || !audioParts.length) return;
+
+    var totalLen = 0;
+    for (var k = 0; k < audioParts.length; k++) totalLen += audioParts[k].byteLength;
+    var merged = new Uint8Array(totalLen);
+    var offset = 0;
+    for (var k = 0; k < audioParts.length; k++) {
+      merged.set(new Uint8Array(audioParts[k]), offset);
+      offset += audioParts[k].byteLength;
+    }
+
+    currentBlob = new Blob([merged], { type: 'audio/mpeg' });
+
+    if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
+    currentBlobUrl = URL.createObjectURL(currentBlob);
+
+    els.audioPlayer.src = currentBlobUrl;
+    els.playerSection.hidden = false;
+
+    addToHistory(rawText.substring(0, 100), voice, lang, speed, currentBlob);
+  };
+
+  // --- Download / Share ---
+
+  function getFilename() {
+    var d = new Date();
+    var ds = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    return 'soniox-' + els.voiceSelect.value + '-' + ds + '.mp3';
+  }
+
+  els.downloadBtn.onclick = async function() {
+    if (!currentBlob) return;
+    var fname = getFilename();
+
+    if (navigator.share && navigator.canShare) {
+      var file = new File([currentBlob], fname, { type: 'audio/mpeg' });
+      if (navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: fname });
+          return;
+        } catch (e) {
+          if (e.name === 'AbortError') return;
+        }
+      }
+    }
+
+    var a = document.createElement('a');
+    a.href = currentBlobUrl;
+    a.download = fname;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  // --- IndexedDB ---
+
+  function openDB() {
+    return new Promise(function(resolve, reject) {
+      var req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = function(e) {
+        var d = e.target.result;
+        if (!d.objectStoreNames.contains('history-meta')) {
+          d.createObjectStore('history-meta', { keyPath: 'id', autoIncrement: true });
+        }
+        if (!d.objectStoreNames.contains('history-audio')) {
+          d.createObjectStore('history-audio', { keyPath: 'id' });
+        }
+      };
+      req.onsuccess = function(e) { resolve(e.target.result); };
+      req.onerror = function() { reject(req.error); };
+    });
+  }
+
+  async function getDB() {
+    if (db) return db;
+    try {
+      db = await openDB();
+      return db;
+    } catch (e) {
+      toast('Історія недоступна в приватному режимі', 'info');
+      return null;
+    }
+  }
+
+  function txPromise(tx) {
+    return new Promise(function(resolve, reject) {
+      tx.oncomplete = resolve;
+      tx.onerror = function() { reject(tx.error); };
+    });
+  }
+
+  function reqPromise(req) {
+    return new Promise(function(resolve, reject) {
+      req.onsuccess = function() { resolve(req.result); };
+      req.onerror = function() { reject(req.error); };
+    });
+  }
+
+  async function addToHistory(textSnippet, voice, language, speed, audioBlob) {
+    var d = await getDB();
+    if (!d) return;
+    try {
+      var meta = {
+        textSnippet: textSnippet,
+        voice: voice,
+        language: language,
+        speed: speed,
+        createdAt: Date.now(),
+        audioSize: audioBlob.size
+      };
+
+      var tx = d.transaction('history-meta', 'readwrite');
+      var store = tx.objectStore('history-meta');
+      var addReq = store.add(meta);
+      var id = await reqPromise(addReq);
+      await txPromise(tx);
+
+      var tx2 = d.transaction('history-audio', 'readwrite');
+      tx2.objectStore('history-audio').put({ id: id, audioBlob: audioBlob });
+      await txPromise(tx2);
+
+      await enforceLimit(d);
+      renderHistory();
+    } catch (e) {
+      toast('Не вдалося зберегти в історію', 'error');
+    }
+  }
+
+  async function enforceLimit(d) {
+    var readTx = d.transaction('history-meta', 'readonly');
+    var all = await reqPromise(readTx.objectStore('history-meta').getAll());
+    if (all.length > HISTORY_LIMIT) {
+      all.sort(function(a, b) { return a.createdAt - b.createdAt; });
+      var toDelete = all.slice(0, all.length - HISTORY_LIMIT);
+      var tx = d.transaction(['history-meta', 'history-audio'], 'readwrite');
+      for (var i = 0; i < toDelete.length; i++) {
+        tx.objectStore('history-meta').delete(toDelete[i].id);
+        tx.objectStore('history-audio').delete(toDelete[i].id);
+      }
+      await txPromise(tx);
+    }
+  }
+
+  async function getHistoryMeta() {
+    var d = await getDB();
+    if (!d) return [];
+    try {
+      var tx = d.transaction('history-meta', 'readonly');
+      var all = await reqPromise(tx.objectStore('history-meta').getAll());
+      all.sort(function(a, b) { return b.createdAt - a.createdAt; });
+      return all.slice(0, HISTORY_LIMIT);
+    } catch (e) { return []; }
+  }
+
+  async function getAudioBlob(id) {
+    var d = await getDB();
+    if (!d) return null;
+    try {
+      var tx = d.transaction('history-audio', 'readonly');
+      var rec = await reqPromise(tx.objectStore('history-audio').get(id));
+      return rec ? rec.audioBlob : null;
+    } catch (e) { return null; }
+  }
+
+  async function deleteItem(id) {
+    var d = await getDB();
+    if (!d) return;
+    try {
+      var tx = d.transaction(['history-meta', 'history-audio'], 'readwrite');
+      tx.objectStore('history-meta').delete(id);
+      tx.objectStore('history-audio').delete(id);
+      await txPromise(tx);
+    } catch (e) {}
+  }
+
+  async function clearHistoryDB() {
+    var d = await getDB();
+    if (!d) return;
+    try {
+      var tx = d.transaction(['history-meta', 'history-audio'], 'readwrite');
+      tx.objectStore('history-meta').clear();
+      tx.objectStore('history-audio').clear();
+      await txPromise(tx);
+    } catch (e) {}
+  }
+
+  // --- History UI ---
+
+  var playSvg = '<svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>';
+  var dlSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+  var delSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>';
+
+  function formatDate(ts) {
+    var d = new Date(ts);
+    return d.toLocaleDateString('uk-UA', { day: 'numeric', month: 'short' }) + ' ' +
+           d.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    return (bytes / 1024).toFixed(0) + ' KB';
+  }
+
+  async function renderHistory() {
+    var items = await getHistoryMeta();
+    if (!items.length) {
+      els.historySection.hidden = true;
+      return;
+    }
+    els.historySection.hidden = false;
+    els.historyList.innerHTML = items.map(function(it) {
+      return '<li class="history-item" data-id="' + it.id + '">' +
+        '<div class="history-item-info">' +
+          '<div class="history-item-text">' + escHtml(it.textSnippet) + '</div>' +
+          '<div class="history-item-meta">' + escHtml(it.voice) + ' · ' + formatDate(it.createdAt) + ' · ' + formatSize(it.audioSize) + '</div>' +
+        '</div>' +
+        '<div class="history-item-actions">' +
+          '<button class="icon-btn play-btn" aria-label="Play">' + playSvg + '</button>' +
+          '<button class="icon-btn dl-btn" aria-label="Download">' + dlSvg + '</button>' +
+          '<button class="icon-btn delete-btn" aria-label="Delete">' + delSvg + '</button>' +
+        '</div>' +
+      '</li>';
+    }).join('');
+  }
+
+  function escHtml(s) {
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  els.historyList.onclick = async function(e) {
+    var btn = e.target.closest('.icon-btn');
+    if (!btn) return;
+    var li = btn.closest('.history-item');
+    var id = parseInt(li.dataset.id, 10);
+
+    if (btn.classList.contains('play-btn')) {
+      var blob = await getAudioBlob(id);
+      if (!blob) { toast('Аудіо не знайдено', 'error'); return; }
+      if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
+      currentBlobUrl = URL.createObjectURL(blob);
+      currentBlob = blob;
+      els.audioPlayer.src = currentBlobUrl;
+      els.playerSection.hidden = false;
+      els.audioPlayer.play();
+    } else if (btn.classList.contains('dl-btn')) {
+      var blob = await getAudioBlob(id);
+      if (!blob) { toast('Аудіо не знайдено', 'error'); return; }
+      var meta = (await getHistoryMeta()).find(function(m) { return m.id === id; });
+      var fname = 'soniox-' + (meta ? meta.voice : 'audio') + '.mp3';
+
+      if (navigator.share && navigator.canShare) {
+        var file = new File([blob], fname, { type: 'audio/mpeg' });
+        if (navigator.canShare({ files: [file] })) {
+          try { await navigator.share({ files: [file], title: fname }); return; } catch(e) { if (e.name === 'AbortError') return; }
+        }
+      }
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = fname;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } else if (btn.classList.contains('delete-btn')) {
+      await deleteItem(id);
+      renderHistory();
+    }
+  };
+
+  els.clearHistory.onclick = async function() {
+    await clearHistoryDB();
+    renderHistory();
+    toast('Історію очищено', 'info');
+  };
+
+  // --- Visibility change ---
+
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible' && generating) {
+      toast('Генерацію могло бути перервано', 'info');
+    }
+  });
+
+  // --- Init ---
+
+  restoreControls();
+  updateByteInfo();
+
+  if (!getKey()) openSettingsModal();
+
+  renderHistory();
+
+})();
+</script>
+</body>
+</html>
