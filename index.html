@@ -549,7 +549,8 @@ input[type="range"]::-webkit-slider-thumb {
     <div class="action-row">
       <button class="btn btn-primary" id="generateBtn">Згенерувати</button>
       <button class="btn btn-live" id="liveBtn">&#9654; Live</button>
-      <button class="btn btn-danger" id="cancelBtn" hidden>Зупинити</button>
+      <button class="btn btn-secondary" id="pauseBtn" hidden>Пауза</button>
+      <button class="btn btn-danger" id="stopBtn" hidden>Зупинити</button>
     </div>
   </section>
 
@@ -611,7 +612,8 @@ input[type="range"]::-webkit-slider-thumb {
     speedValue: $('speedValue'),
     generateBtn: $('generateBtn'),
     liveBtn: $('liveBtn'),
-    cancelBtn: $('cancelBtn'),
+    pauseBtn: $('pauseBtn'),
+    stopBtn: $('stopBtn'),
     progressText: $('progressText'),
     playerSection: $('playerSection'),
     audioPlayer: $('audioPlayer'),
@@ -634,7 +636,10 @@ input[type="range"]::-webkit-slider-thumb {
   var generating = false;
   var db = null;
   var liveWs = null;
+  var liveStopFn = null;
   var audioCtx = null;
+  var liveMode = false;
+  var paused = false;
 
   // --- Toast ---
 
@@ -830,22 +835,40 @@ input[type="range"]::-webkit-slider-thumb {
 
   // --- TTS generation ---
 
-  function setGenerating(state) {
+  function setGenerating(state, isLive) {
     generating = state;
-    els.generateBtn.disabled = state;
-    els.liveBtn.disabled = state;
-    els.cancelBtn.hidden = !state;
+    liveMode = isLive || false;
+    paused = false;
     els.generateBtn.hidden = state;
     els.liveBtn.hidden = state;
+    els.stopBtn.hidden = !state;
+    els.pauseBtn.hidden = !(state && isLive);
+    if (!state) els.pauseBtn.hidden = true;
     els.progressText.hidden = !state;
     els.textInput.disabled = state;
+    if (!state) {
+      els.pauseBtn.textContent = 'Пауза';
+    }
   }
 
-  els.cancelBtn.onclick = function() {
+  els.stopBtn.onclick = function() {
     if (abortController) abortController.abort();
-    if (liveWs) {
-      liveWs.close();
-      liveWs = null;
+    if (liveStopFn) liveStopFn();
+    setGenerating(false);
+  };
+
+  els.pauseBtn.onclick = function() {
+    if (!audioCtx) return;
+    if (paused) {
+      audioCtx.resume();
+      paused = false;
+      els.pauseBtn.textContent = 'Пауза';
+      els.progressText.textContent = 'Відтворення…';
+    } else {
+      audioCtx.suspend();
+      paused = true;
+      els.pauseBtn.textContent = 'Продовжити';
+      els.progressText.textContent = 'Пауза';
     }
   };
 
@@ -1024,7 +1047,7 @@ input[type="range"]::-webkit-slider-thumb {
     var speed = parseFloat(els.speedRange.value);
     var streamId = 'live-' + Date.now();
 
-    setGenerating(true);
+    setGenerating(true, true);
     els.progressText.textContent = 'Підключення…';
     els.playerSection.hidden = true;
 
@@ -1033,9 +1056,50 @@ input[type="range"]::-webkit-slider-thumb {
 
     var nextTime = audioCtx.currentTime + 0.1;
     var pcmChunks = [];
+    var sources = [];
+    var terminated = false;
+    var finished = false;
+    var saved = false;
     var ws = new WebSocket(WS_URL);
     liveWs = ws;
     var opened = false;
+
+    function saveResult() {
+      if (saved || !pcmChunks.length) return;
+      saved = true;
+      var wavBlob = encodeWav(pcmChunks, SAMPLE_RATE);
+      pcmChunks.length = 0;
+      currentBlob = wavBlob;
+      if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
+      currentBlobUrl = URL.createObjectURL(wavBlob);
+      els.audioPlayer.src = currentBlobUrl;
+      els.playerSection.hidden = false;
+      addToHistory(rawText.substring(0, 100), voice, lang, speed, wavBlob);
+    }
+
+    function finishUI() {
+      if (finished) return;
+      finished = true;
+      liveStopFn = null;
+      if (liveWs === ws) liveWs = null;
+      setGenerating(false);
+    }
+
+    function maybeFinish() {
+      if (terminated && !sources.length) finishUI();
+    }
+
+    liveStopFn = function() {
+      if (finished) return;
+      for (var i = 0; i < sources.length; i++) {
+        sources[i].onended = null;
+        try { sources[i].stop(); } catch (e) {}
+      }
+      sources.length = 0;
+      pcmChunks.length = 0;
+      try { ws.close(); } catch (e) {}
+      finishUI();
+    };
 
     ws.onopen = function() {
       opened = true;
@@ -1058,13 +1122,14 @@ input[type="range"]::-webkit-slider-thumb {
     };
 
     ws.onmessage = function(ev) {
+      if (finished) return;
       var msg;
       try { msg = JSON.parse(ev.data); } catch (e) { return; }
 
       if (msg.error_code) {
         if (msg.error_code === 401) toast('Невірний API key', 'error');
         else toast('API помилка: ' + (msg.error_message || msg.error_code), 'error');
-        ws.close();
+        liveStopFn();
         return;
       }
 
@@ -1078,6 +1143,12 @@ input[type="range"]::-webkit-slider-thumb {
         var src = audioCtx.createBufferSource();
         src.buffer = buf;
         src.connect(audioCtx.destination);
+        src.onended = function() {
+          var idx = sources.indexOf(src);
+          if (idx !== -1) sources.splice(idx, 1);
+          maybeFinish();
+        };
+        sources.push(src);
 
         var now = audioCtx.currentTime;
         if (nextTime < now) nextTime = now;
@@ -1086,32 +1157,25 @@ input[type="range"]::-webkit-slider-thumb {
       }
 
       if (msg.terminated) {
-        liveWs = null;
-        setGenerating(false);
-
-        if (pcmChunks.length) {
-          var wavBlob = encodeWav(pcmChunks, SAMPLE_RATE);
-          currentBlob = wavBlob;
-          if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
-          currentBlobUrl = URL.createObjectURL(wavBlob);
-          els.audioPlayer.src = currentBlobUrl;
-          els.playerSection.hidden = false;
-          addToHistory(rawText.substring(0, 100), voice, lang, speed, wavBlob);
-          toast('Live генерація завершена', 'success');
-        }
+        terminated = true;
+        saveResult();
+        toast('Live генерація завершена', 'success');
+        try { ws.close(); } catch (e) {}
+        maybeFinish();
       }
     };
 
     ws.onerror = function() {
       if (!opened) toast('Не вдалося підключитися до WebSocket', 'error');
-      liveWs = null;
-      setGenerating(false);
     };
 
     ws.onclose = function() {
-      if (liveWs === ws) {
-        liveWs = null;
-        setGenerating(false);
+      if (liveWs === ws) liveWs = null;
+      if (finished) return;
+      if (!terminated) {
+        saveResult();
+        terminated = true;
+        maybeFinish();
       }
     };
   };
@@ -1130,7 +1194,7 @@ input[type="range"]::-webkit-slider-thumb {
     var fname = getFilename();
 
     if (navigator.share && navigator.canShare) {
-      var file = new File([currentBlob], fname, { type: 'audio/mpeg' });
+      var file = new File([currentBlob], fname, { type: currentBlob.type || 'audio/mpeg' });
       if (navigator.canShare({ files: [file] })) {
         try {
           await navigator.share({ files: [file], title: fname });
@@ -1345,10 +1409,11 @@ input[type="range"]::-webkit-slider-thumb {
       var blob = await getAudioBlob(id);
       if (!blob) { toast('Аудіо не знайдено', 'error'); return; }
       var meta = (await getHistoryMeta()).find(function(m) { return m.id === id; });
-      var fname = 'soniox-' + (meta ? meta.voice : 'audio') + '.mp3';
+      var ext = blob.type === 'audio/wav' ? '.wav' : '.mp3';
+      var fname = 'soniox-' + (meta ? meta.voice : 'audio') + ext;
 
       if (navigator.share && navigator.canShare) {
-        var file = new File([blob], fname, { type: 'audio/mpeg' });
+        var file = new File([blob], fname, { type: blob.type || 'audio/mpeg' });
         if (navigator.canShare({ files: [file] })) {
           try { await navigator.share({ files: [file], title: fname }); return; } catch(e) { if (e.name === 'AbortError') return; }
         }
