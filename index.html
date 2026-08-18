@@ -159,6 +159,26 @@ textarea {
   transition: border-color 0.15s;
 }
 textarea:focus { outline: none; border-color: var(--accent); }
+.textarea-wrap {
+  position: relative;
+}
+.paste-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  line-height: 0;
+  transition: background 0.15s, color 0.15s;
+  z-index: 1;
+}
+.paste-btn:hover { background: var(--border); color: var(--text); }
+.paste-btn:active { background: var(--accent); color: var(--accent-text); }
+.paste-btn svg { width: 18px; height: 18px; }
 .byte-info {
   margin-top: 6px;
   font-size: 13px;
@@ -446,7 +466,12 @@ input[type="range"]::-webkit-slider-thumb {
 
   <section>
     <label for="textInput">Текст</label>
-    <textarea id="textInput" placeholder="Введіть або вставте текст…"></textarea>
+    <div class="textarea-wrap">
+      <textarea id="textInput" placeholder="Введіть або вставте текст…"></textarea>
+      <button class="paste-btn" id="pasteBtn" aria-label="Paste">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="4" rx="1"/><path d="M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2"/></svg>
+      </button>
+    </div>
     <div class="byte-info" id="byteInfo">0 / 5000 bytes (0 chunks)</div>
   </section>
 
@@ -605,6 +630,7 @@ input[type="range"]::-webkit-slider-thumb {
 
   var els = {
     textInput: $('textInput'),
+    pasteBtn: $('pasteBtn'),
     byteInfo: $('byteInfo'),
     voiceSelect: $('voiceSelect'),
     langSelect: $('langSelect'),
@@ -711,6 +737,24 @@ input[type="range"]::-webkit-slider-thumb {
     var v = parseFloat(this.value).toFixed(2);
     els.speedValue.textContent = v;
     saveControl('speed', this.value);
+  };
+
+  // --- Paste ---
+
+  els.pasteBtn.onclick = async function() {
+    try {
+      var clip = await navigator.clipboard.readText();
+      if (!clip) { toast('Буфер порожній', 'info'); return; }
+      var ta = els.textInput;
+      var start = ta.selectionStart;
+      var end = ta.selectionEnd;
+      ta.value = ta.value.substring(0, start) + clip + ta.value.substring(end);
+      ta.selectionStart = ta.selectionEnd = start + clip.length;
+      ta.focus();
+      updateByteInfo();
+    } catch (e) {
+      toast('Немає доступу до буфера', 'error');
+    }
   };
 
   // --- Byte count ---
