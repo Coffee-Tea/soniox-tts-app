@@ -243,6 +243,11 @@ input[type="range"]::-webkit-slider-thumb {
   color: var(--accent-text);
 }
 .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+.btn-live {
+  background: var(--success);
+  color: #fff;
+}
+.btn-live:hover:not(:disabled) { opacity: 0.85; }
 .btn-danger {
   background: var(--danger);
   color: #fff;
@@ -543,7 +548,8 @@ input[type="range"]::-webkit-slider-thumb {
     <div class="progress-text" id="progressText" hidden></div>
     <div class="action-row">
       <button class="btn btn-primary" id="generateBtn">Згенерувати</button>
-      <button class="btn btn-danger" id="cancelBtn" hidden>Скасувати</button>
+      <button class="btn btn-live" id="liveBtn">&#9654; Live</button>
+      <button class="btn btn-danger" id="cancelBtn" hidden>Зупинити</button>
     </div>
   </section>
 
@@ -591,6 +597,8 @@ input[type="range"]::-webkit-slider-thumb {
   var DB_VERSION = 1;
   var HISTORY_LIMIT = 20;
   var TTS_URL = 'https://tts-rt.soniox.com/tts';
+  var WS_URL = 'wss://tts-rt.soniox.com/tts-websocket';
+  var SAMPLE_RATE = 24000;
 
   var $ = function(id) { return document.getElementById(id); };
 
@@ -602,6 +610,7 @@ input[type="range"]::-webkit-slider-thumb {
     speedRange: $('speedRange'),
     speedValue: $('speedValue'),
     generateBtn: $('generateBtn'),
+    liveBtn: $('liveBtn'),
     cancelBtn: $('cancelBtn'),
     progressText: $('progressText'),
     playerSection: $('playerSection'),
@@ -624,6 +633,8 @@ input[type="range"]::-webkit-slider-thumb {
   var abortController = null;
   var generating = false;
   var db = null;
+  var liveWs = null;
+  var audioCtx = null;
 
   // --- Toast ---
 
@@ -822,13 +833,20 @@ input[type="range"]::-webkit-slider-thumb {
   function setGenerating(state) {
     generating = state;
     els.generateBtn.disabled = state;
+    els.liveBtn.disabled = state;
     els.cancelBtn.hidden = !state;
+    els.generateBtn.hidden = state;
+    els.liveBtn.hidden = state;
     els.progressText.hidden = !state;
     els.textInput.disabled = state;
   }
 
   els.cancelBtn.onclick = function() {
     if (abortController) abortController.abort();
+    if (liveWs) {
+      liveWs.close();
+      liveWs = null;
+    }
   };
 
   els.generateBtn.onclick = async function() {
@@ -933,12 +951,178 @@ input[type="range"]::-webkit-slider-thumb {
     addToHistory(rawText.substring(0, 100), voice, lang, speed, currentBlob);
   };
 
+  // --- WebSocket live streaming ---
+
+  function b64toInt16(b64) {
+    var bin = atob(b64);
+    var buf = new ArrayBuffer(bin.length);
+    var u8 = new Uint8Array(buf);
+    for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    return new Int16Array(buf);
+  }
+
+  function int16toFloat32(int16) {
+    var f32 = new Float32Array(int16.length);
+    for (var i = 0; i < int16.length; i++) f32[i] = int16[i] / 32768;
+    return f32;
+  }
+
+  function encodeWav(pcmChunks, sampleRate) {
+    var totalSamples = 0;
+    for (var i = 0; i < pcmChunks.length; i++) totalSamples += pcmChunks[i].length;
+    var dataBytes = totalSamples * 2;
+    var buf = new ArrayBuffer(44 + dataBytes);
+    var view = new DataView(buf);
+
+    function writeStr(off, s) { for (var i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); }
+
+    writeStr(0, 'RIFF');
+    view.setUint32(4, 36 + dataBytes, true);
+    writeStr(8, 'WAVE');
+    writeStr(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    writeStr(36, 'data');
+    view.setUint32(40, dataBytes, true);
+
+    var offset = 44;
+    for (var i = 0; i < pcmChunks.length; i++) {
+      var chunk = pcmChunks[i];
+      for (var j = 0; j < chunk.length; j++) {
+        view.setInt16(offset, chunk[j], true);
+        offset += 2;
+      }
+    }
+    return new Blob([buf], { type: 'audio/wav' });
+  }
+
+  els.liveBtn.onclick = function() {
+    var key = getKey();
+    if (!key) {
+      toast('Вкажіть API key в налаштуваннях', 'error');
+      openSettingsModal();
+      return;
+    }
+    var rawText = els.textInput.value.trim();
+    if (!rawText) {
+      toast('Введіть текст', 'error');
+      return;
+    }
+    var text = stripMarkdown(rawText).trim();
+    if (!text) {
+      toast('Після очистки текст порожній', 'error');
+      return;
+    }
+
+    var voice = els.voiceSelect.value;
+    var lang = els.langSelect.value;
+    var speed = parseFloat(els.speedRange.value);
+    var streamId = 'live-' + Date.now();
+
+    setGenerating(true);
+    els.progressText.textContent = 'Підключення…';
+    els.playerSection.hidden = true;
+
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: SAMPLE_RATE });
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+
+    var nextTime = audioCtx.currentTime + 0.1;
+    var pcmChunks = [];
+    var ws = new WebSocket(WS_URL);
+    liveWs = ws;
+    var opened = false;
+
+    ws.onopen = function() {
+      opened = true;
+      ws.send(JSON.stringify({
+        api_key: key,
+        model: 'tts-rt-v2',
+        language: lang,
+        voice: voice,
+        audio_format: 'pcm_s16le',
+        sample_rate: SAMPLE_RATE,
+        stream_id: streamId,
+        speed: speed
+      }));
+      ws.send(JSON.stringify({
+        text: text,
+        text_end: true,
+        stream_id: streamId
+      }));
+      els.progressText.textContent = 'Відтворення…';
+    };
+
+    ws.onmessage = function(ev) {
+      var msg;
+      try { msg = JSON.parse(ev.data); } catch (e) { return; }
+
+      if (msg.error_code) {
+        if (msg.error_code === 401) toast('Невірний API key', 'error');
+        else toast('API помилка: ' + (msg.error_message || msg.error_code), 'error');
+        ws.close();
+        return;
+      }
+
+      if (msg.audio) {
+        var int16 = b64toInt16(msg.audio);
+        pcmChunks.push(int16);
+        var f32 = int16toFloat32(int16);
+
+        var buf = audioCtx.createBuffer(1, f32.length, SAMPLE_RATE);
+        buf.getChannelData(0).set(f32);
+        var src = audioCtx.createBufferSource();
+        src.buffer = buf;
+        src.connect(audioCtx.destination);
+
+        var now = audioCtx.currentTime;
+        if (nextTime < now) nextTime = now;
+        src.start(nextTime);
+        nextTime += buf.duration;
+      }
+
+      if (msg.terminated) {
+        liveWs = null;
+        setGenerating(false);
+
+        if (pcmChunks.length) {
+          var wavBlob = encodeWav(pcmChunks, SAMPLE_RATE);
+          currentBlob = wavBlob;
+          if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
+          currentBlobUrl = URL.createObjectURL(wavBlob);
+          els.audioPlayer.src = currentBlobUrl;
+          els.playerSection.hidden = false;
+          addToHistory(rawText.substring(0, 100), voice, lang, speed, wavBlob);
+          toast('Live генерація завершена', 'success');
+        }
+      }
+    };
+
+    ws.onerror = function() {
+      if (!opened) toast('Не вдалося підключитися до WebSocket', 'error');
+      liveWs = null;
+      setGenerating(false);
+    };
+
+    ws.onclose = function() {
+      if (liveWs === ws) {
+        liveWs = null;
+        setGenerating(false);
+      }
+    };
+  };
+
   // --- Download / Share ---
 
   function getFilename() {
     var d = new Date();
     var ds = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-    return 'soniox-' + els.voiceSelect.value + '-' + ds + '.mp3';
+    var ext = currentBlob && currentBlob.type === 'audio/wav' ? '.wav' : '.mp3';
+    return 'soniox-' + els.voiceSelect.value + '-' + ds + ext;
   }
 
   els.downloadBtn.onclick = async function() {
