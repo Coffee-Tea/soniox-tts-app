@@ -619,6 +619,7 @@ input[type="range"]::-webkit-slider-thumb {
 
   var encoder = new TextEncoder();
   var BYTE_LIMIT = 4700;
+  var CHAR_LIMIT = 4000;
   var DB_NAME = 'soniox-tts';
   var DB_VERSION = 1;
   var HISTORY_LIMIT = 20;
@@ -794,29 +795,34 @@ input[type="range"]::-webkit-slider-thumb {
     var chunks = [];
     var current = [];
     var currentBytes = 0;
+    var currentChars = 0;
 
     for (var i = 0; i < paragraphs.length; i++) {
       var p = paragraphs[i];
       var pBytes = byteLen(p) + 2;
+      var pChars = p.length + 2;
 
-      if (pBytes > BYTE_LIMIT + 2) {
+      if (pBytes > BYTE_LIMIT + 2 || pChars > CHAR_LIMIT + 2) {
         if (current.length) {
           chunks.push(current.join('\n\n'));
           current = [];
           currentBytes = 0;
+          currentChars = 0;
         }
         var sub = chunkBySentences(p);
         for (var j = 0; j < sub.length; j++) chunks.push(sub[j]);
         continue;
       }
 
-      if (current.length && currentBytes + pBytes > BYTE_LIMIT) {
+      if (current.length && (currentBytes + pBytes > BYTE_LIMIT || currentChars + pChars > CHAR_LIMIT)) {
         chunks.push(current.join('\n\n'));
         current = [];
         currentBytes = 0;
+        currentChars = 0;
       }
       current.push(p);
       currentBytes += pBytes;
+      currentChars += pChars;
     }
     if (current.length) chunks.push(current.join('\n\n'));
     return chunks.length ? chunks : [''];
@@ -827,29 +833,34 @@ input[type="range"]::-webkit-slider-thumb {
     var chunks = [];
     var current = [];
     var currentBytes = 0;
+    var currentChars = 0;
 
     for (var i = 0; i < sentences.length; i++) {
       var s = sentences[i];
       var sBytes = byteLen(s) + 1;
+      var sChars = s.length + 1;
 
-      if (sBytes > BYTE_LIMIT + 1) {
+      if (sBytes > BYTE_LIMIT + 1 || sChars > CHAR_LIMIT + 1) {
         if (current.length) {
           chunks.push(current.join(' '));
           current = [];
           currentBytes = 0;
+          currentChars = 0;
         }
         var sub = chunkByWords(s);
         for (var j = 0; j < sub.length; j++) chunks.push(sub[j]);
         continue;
       }
 
-      if (current.length && currentBytes + sBytes > BYTE_LIMIT) {
+      if (current.length && (currentBytes + sBytes > BYTE_LIMIT || currentChars + sChars > CHAR_LIMIT)) {
         chunks.push(current.join(' '));
         current = [];
         currentBytes = 0;
+        currentChars = 0;
       }
       current.push(s);
       currentBytes += sBytes;
+      currentChars += sChars;
     }
     if (current.length) chunks.push(current.join(' '));
     return chunks;
@@ -860,18 +871,22 @@ input[type="range"]::-webkit-slider-thumb {
     var chunks = [];
     var current = [];
     var currentBytes = 0;
+    var currentChars = 0;
 
     for (var i = 0; i < words.length; i++) {
       var w = words[i];
       var wBytes = byteLen(w) + 1;
+      var wChars = w.length + 1;
 
-      if (current.length && currentBytes + wBytes > BYTE_LIMIT) {
+      if (current.length && (currentBytes + wBytes > BYTE_LIMIT || currentChars + wChars > CHAR_LIMIT)) {
         chunks.push(current.join(' '));
         current = [];
         currentBytes = 0;
+        currentChars = 0;
       }
       current.push(w);
       currentBytes += wBytes;
+      currentChars += wChars;
     }
     if (current.length) chunks.push(current.join(' '));
     return chunks;
@@ -1089,7 +1104,9 @@ input[type="range"]::-webkit-slider-thumb {
     var voice = els.voiceSelect.value;
     var lang = els.langSelect.value;
     var speed = parseFloat(els.speedRange.value);
-    var streamId = 'live-' + Date.now();
+    var chunks = chunkText(text);
+    var chunkIndex = 0;
+    var streamBase = 'live-' + Date.now();
 
     setGenerating(true, true);
     els.progressText.textContent = 'Підключення…';
@@ -1145,8 +1162,8 @@ input[type="range"]::-webkit-slider-thumb {
       finishUI();
     };
 
-    ws.onopen = function() {
-      opened = true;
+    function startStream(i) {
+      var sid = streamBase + '-' + i;
       ws.send(JSON.stringify({
         api_key: key,
         model: 'tts-rt-v2',
@@ -1154,18 +1171,22 @@ input[type="range"]::-webkit-slider-thumb {
         voice: voice,
         audio_format: 'pcm_s16le',
         sample_rate: SAMPLE_RATE,
-        stream_id: streamId,
+        stream_id: sid,
         speed: speed
       }));
-      var chunks = chunkText(text);
-      for (var ci = 0; ci < chunks.length; ci++) {
-        ws.send(JSON.stringify({
-          text: chunks[ci],
-          text_end: ci === chunks.length - 1,
-          stream_id: streamId
-        }));
-      }
-      els.progressText.textContent = 'Відтворення…';
+      ws.send(JSON.stringify({
+        text: chunks[i],
+        text_end: true,
+        stream_id: sid
+      }));
+      els.progressText.textContent = chunks.length > 1
+        ? 'Відтворення… (частина ' + (i + 1) + ' з ' + chunks.length + ')'
+        : 'Відтворення…';
+    }
+
+    ws.onopen = function() {
+      opened = true;
+      startStream(0);
     };
 
     ws.onmessage = function(ev) {
@@ -1204,6 +1225,11 @@ input[type="range"]::-webkit-slider-thumb {
       }
 
       if (msg.terminated) {
+        chunkIndex++;
+        if (chunkIndex < chunks.length) {
+          startStream(chunkIndex);
+          return;
+        }
         terminated = true;
         saveResult();
         toast('Live генерація завершена', 'success');
