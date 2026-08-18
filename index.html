@@ -1113,11 +1113,14 @@ input[type="range"]::-webkit-slider-thumb {
         stream_id: streamId,
         speed: speed
       }));
-      ws.send(JSON.stringify({
-        text: text,
-        text_end: true,
-        stream_id: streamId
-      }));
+      var chunks = chunkText(text);
+      for (var ci = 0; ci < chunks.length; ci++) {
+        ws.send(JSON.stringify({
+          text: chunks[ci],
+          text_end: ci === chunks.length - 1,
+          stream_id: streamId
+        }));
+      }
       els.progressText.textContent = 'Відтворення…';
     };
 
