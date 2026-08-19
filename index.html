@@ -1163,6 +1163,13 @@ input[type="range"]::-webkit-slider-thumb {
     };
 
     function startStream(i) {
+      if (ws.readyState !== WebSocket.OPEN) {
+        toast('З\'єднання втрачено на частині ' + (i + 1), 'error');
+        terminated = true;
+        saveResult();
+        maybeFinish();
+        return;
+      }
       var sid = streamBase + '-' + i;
       ws.send(JSON.stringify({
         api_key: key,
@@ -1196,8 +1203,11 @@ input[type="range"]::-webkit-slider-thumb {
 
       if (msg.error_code) {
         if (msg.error_code === 401) toast('Невірний API key', 'error');
-        else toast('API помилка: ' + (msg.error_message || msg.error_code), 'error');
-        liveStopFn();
+        else toast('API [' + msg.error_code + ']: ' + (msg.error_message || 'unknown'), 'error');
+        terminated = true;
+        saveResult();
+        try { ws.close(); } catch (e) {}
+        maybeFinish();
         return;
       }
 
@@ -1227,7 +1237,14 @@ input[type="range"]::-webkit-slider-thumb {
       if (msg.terminated) {
         chunkIndex++;
         if (chunkIndex < chunks.length) {
-          startStream(chunkIndex);
+          try {
+            startStream(chunkIndex);
+          } catch (e) {
+            toast('Помилка на частині ' + (chunkIndex + 1) + ': ' + e.message, 'error');
+            terminated = true;
+            saveResult();
+            maybeFinish();
+          }
           return;
         }
         terminated = true;
